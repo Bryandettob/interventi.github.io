@@ -4,107 +4,167 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Registro Interventi</title>
-
-<!-- Manifest per PWA -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1976d2">
-
-<!-- Icona per la schermata home -->
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 
 <style>
-  body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-  h1 { text-align: center; }
+  body { font-family: Arial, sans-serif; margin: 0; background: #f5f5f5; }
+  h1 { text-align: center; margin-top: 20px; }
   .btn-container { text-align: center; margin: 20px 0; }
-  button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; }
-  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; color: #fff; }
+  .btn-inizio { background: #4CAF50; }
+  .btn-fine { background: #F44336; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }
   th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
   th { background: #eee; }
-  .stats { margin-top: 20px; background: #fff; padding: 10px; border-radius: 5px; }
-  input[type="file"] { display: none; }
+  .stats { margin: 20px; background: #fff; padding: 10px; border-radius: 5px; }
+  
+  /* Sidebar */
+  .sidebar {
+    height: 100%; width: 0; position: fixed; z-index: 1; top: 0; left: 0;
+    background-color: #333; overflow-x: hidden; transition: 0.3s; padding-top: 60px;
+  }
+  .sidebar a, .sidebar button {
+    padding: 10px 15px; text-decoration: none; font-size: 18px;
+    color: #fff; display: block; background: none; border: none; text-align: left; width: 100%;
+    cursor: pointer;
+  }
+  .sidebar a:hover, .sidebar button:hover { background-color: #575757; }
+  .sidebar .closebtn {
+    position: absolute; top: 0; right: 10px; font-size: 30px;
+  }
+  #main { transition: margin-left 0.3s; padding: 20px; }
+  .menu-btn { font-size: 20px; cursor: pointer; background: none; border: none; color: #333; }
+  
+  /* Login */
+  #loginScreen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center;
+    color: white; flex-direction: column;
+  }
+  #loginScreen input { padding: 10px; font-size: 16px; margin-top: 10px; }
+  #loginScreen button { background: #2196F3; margin-top: 10px; }
 </style>
 </head>
 <body>
 
-<h1>Registro Interventi</h1>
-
-<div class="btn-container">
-  <button onclick="addIntervento('Inizio')">Inizio intervento</button>
-  <button onclick="addIntervento('Fine')">Fine intervento</button>
+<!-- Login Screen -->
+<div id="loginScreen">
+  <h2>Login</h2>
+  <input type="text" id="username" placeholder="Inserisci il tuo nome">
+  <button onclick="login()">Entra</button>
 </div>
 
-<div class="stats">
-  <p><b>Totale interventi:</b> <span id="totalCount">0</span></p>
-  <p><b>Interventi per anno:</b> <span id="perYear"></span></p>
-  <p><b>Interventi per mese:</b> <span id="perMonth"></span></p>
-</div>
-
-<div style="margin-top: 20px;">
+<!-- Sidebar -->
+<div id="mySidebar" class="sidebar">
+  <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">×</a>
+  <button onclick="showStats('year')">📅 Interventi per anno</button>
+  <button onclick="showStats('month')">🗓️ Interventi per mese</button>
   <button onclick="exportData()">📤 Esporta dati</button>
-  <label for="fileInput" style="cursor:pointer; padding:10px 20px; background:#ddd; border-radius:5px;">📥 Importa dati</label>
-  <input type="file" id="fileInput" accept=".json" onchange="importData(event)">
+  <input type="file" id="fileInput" accept=".json" style="display:none" onchange="importData(event)">
+  <button onclick="document.getElementById('fileInput').click()">📥 Importa dati</button>
+  <button onclick="showClassifica()">🏆 Classifica</button>
 </div>
 
-<table>
-  <thead>
-    <tr>
-      <th>Data</th>
-      <th>Ora</th>
-      <th>Tipo</th>
-    </tr>
-  </thead>
-  <tbody id="tableBody"></tbody>
-</table>
+<!-- Main Content -->
+<div id="main">
+  <button class="menu-btn" onclick="openNav()">☰ Menu</button>
+  <h1>Registro Interventi</h1>
+  <div class="btn-container">
+    <button class="btn-inizio" onclick="addInizio()">Inizio intervento</button>
+    <button class="btn-fine" onclick="addFine()">Fine intervento</button>
+  </div>
+  <div class="stats">
+    <p><b>Totale interventi:</b> <span id="totalCount">0</span></p>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Data inizio</th>
+        <th>Ora inizio</th>
+        <th>Data fine</th>
+        <th>Ora fine</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
 
 <script>
-let interventi = JSON.parse(localStorage.getItem('interventi')) || [];
+let allData = JSON.parse(localStorage.getItem('multiUtenteInterventi')) || {};
+let currentUser = null;
+let tempInizio = null; // memorizza inizio corrente prima di chiudere intervento
 
-function saveData() {
-  localStorage.setItem('interventi', JSON.stringify(interventi));
+function login() {
+  const name = document.getElementById('username').value.trim();
+  if (!name) { alert("Inserisci un nome utente!"); return; }
+  currentUser = name;
+  if (!allData[currentUser]) allData[currentUser] = [];
+  saveAll();
+  document.getElementById('loginScreen').style.display = 'none';
+  renderTable();
+}
+
+function saveAll() {
+  localStorage.setItem('multiUtenteInterventi', JSON.stringify(allData));
 }
 
 function renderTable() {
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
-  interventi.forEach(item => {
+  allData[currentUser].forEach(item => {
     const row = `<tr>
-      <td>${item.data}</td>
-      <td>${item.ora}</td>
-      <td>${item.tipo}</td>
+      <td>${item.dataInizio || ''}</td>
+      <td>${item.oraInizio || ''}</td>
+      <td>${item.dataFine || ''}</td>
+      <td>${item.oraFine || ''}</td>
     </tr>`;
     tbody.innerHTML += row;
   });
-  updateStats();
+  document.getElementById('totalCount').innerText = allData[currentUser].length;
 }
 
-function addIntervento(tipo) {
+function addInizio() {
+  if (tempInizio) { alert("Hai già un intervento in corso!"); return; }
   const now = new Date();
-  const data = now.toLocaleDateString('it-IT');
-  const ora = now.toLocaleTimeString('it-IT');
-  interventi.push({ data, ora, tipo });
-  saveData();
+  tempInizio = {
+    dataInizio: now.toLocaleDateString('it-IT'),
+    oraInizio: now.toLocaleTimeString('it-IT'),
+    dataFine: '',
+    oraFine: ''
+  };
+}
+
+function addFine() {
+  if (!tempInizio) { alert("Devi avviare un intervento prima di terminarlo!"); return; }
+  const now = new Date();
+  tempInizio.dataFine = now.toLocaleDateString('it-IT');
+  tempInizio.oraFine = now.toLocaleTimeString('it-IT');
+  allData[currentUser].push(tempInizio);
+  tempInizio = null;
+  saveAll();
   renderTable();
 }
 
-function updateStats() {
-  document.getElementById('totalCount').innerText = interventi.length;
-  
-  const perYear = {};
-  const perMonth = {};
-  
-  interventi.forEach(i => {
-    const [day, month, year] = i.data.split('/');
-    perYear[year] = (perYear[year] || 0) + 1;
-    const monthKey = `${month}/${year}`;
-    perMonth[monthKey] = (perMonth[monthKey] || 0) + 1;
+function showStats(mode) {
+  let counts = {};
+  allData[currentUser].forEach(i => {
+    if (mode === 'year') {
+      const year = i.dataInizio.split('/')[2];
+      counts[year] = (counts[year] || 0) + 1;
+    } else if (mode === 'month') {
+      const [day, month, year] = i.dataInizio.split('/');
+      const key = `${month}/${year}`;
+      counts[key] = (counts[key] || 0) + 1;
+    }
   });
-  
-  document.getElementById('perYear').innerText = JSON.stringify(perYear);
-  document.getElementById('perMonth').innerText = JSON.stringify(perMonth);
+  alert(mode === 'year' ? "Interventi per anno:\n" + JSON.stringify(counts, null, 2)
+                        : "Interventi per mese:\n" + JSON.stringify(counts, null, 2));
 }
 
 function exportData() {
-  const blob = new Blob([JSON.stringify(interventi, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(allData, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -116,32 +176,49 @@ function exportData() {
 function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
-  
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
       const data = JSON.parse(e.target.result);
-      if (Array.isArray(data)) {
-        interventi = interventi.concat(data);
-        saveData();
+      if (typeof data === 'object') {
+        allData = data;
+        saveAll();
         renderTable();
       } else {
         alert('Il file non è valido.');
       }
-    } catch (err) {
+    } catch {
       alert('Errore nella lettura del file.');
     }
   };
   reader.readAsText(file);
 }
 
-renderTable();
+function showClassifica() {
+  let arr = [];
+  for (let user in allData) {
+    arr.push({ utente: user, count: allData[user].length });
+  }
+  arr.sort((a,b) => b.count - a.count);
+  let text = "Classifica:\n";
+  arr.forEach((u, idx) => {
+    text += `${idx+1}. ${u.utente} - ${u.count} interventi\n`;
+  });
+  alert(text);
+}
 
-// 🔹 Registrazione Service Worker
+function openNav() {
+  document.getElementById("mySidebar").style.width = "250px";
+  document.getElementById("main").style.marginLeft = "250px";
+}
+
+function closeNav() {
+  document.getElementById("mySidebar").style.width = "0";
+  document.getElementById("main").style.marginLeft= "0";
+}
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js')
-    .then(() => console.log('Service Worker registrato'))
-    .catch(err => console.log('Errore SW:', err));
+  navigator.serviceWorker.register('service-worker.js');
 }
 </script>
 
