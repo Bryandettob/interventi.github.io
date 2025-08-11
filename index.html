@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro Interventi</title>
+
+<!-- Manifest per PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1976d2">
+
+<!-- Icona per la schermata home -->
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+  h1 { text-align: center; }
+  .btn-container { text-align: center; margin: 20px 0; }
+  button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+  th { background: #eee; }
+  .stats { margin-top: 20px; background: #fff; padding: 10px; border-radius: 5px; }
+  input[type="file"] { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Registro Interventi</h1>
+
+<div class="btn-container">
+  <button onclick="addIntervento('Inizio')">Inizio intervento</button>
+  <button onclick="addIntervento('Fine')">Fine intervento</button>
+</div>
+
+<div class="stats">
+  <p><b>Totale interventi:</b> <span id="totalCount">0</span></p>
+  <p><b>Interventi per anno:</b> <span id="perYear"></span></p>
+  <p><b>Interventi per mese:</b> <span id="perMonth"></span></p>
+</div>
+
+<div style="margin-top: 20px;">
+  <button onclick="exportData()">📤 Esporta dati</button>
+  <label for="fileInput" style="cursor:pointer; padding:10px 20px; background:#ddd; border-radius:5px;">📥 Importa dati</label>
+  <input type="file" id="fileInput" accept=".json" onchange="importData(event)">
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Data</th>
+      <th>Ora</th>
+      <th>Tipo</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody"></tbody>
+</table>
+
+<script>
+let interventi = JSON.parse(localStorage.getItem('interventi')) || [];
+
+function saveData() {
+  localStorage.setItem('interventi', JSON.stringify(interventi));
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  interventi.forEach(item => {
+    const row = `<tr>
+      <td>${item.data}</td>
+      <td>${item.ora}</td>
+      <td>${item.tipo}</td>
+    </tr>`;
+    tbody.innerHTML += row;
+  });
+  updateStats();
+}
+
+function addIntervento(tipo) {
+  const now = new Date();
+  const data = now.toLocaleDateString('it-IT');
+  const ora = now.toLocaleTimeString('it-IT');
+  interventi.push({ data, ora, tipo });
+  saveData();
+  renderTable();
+}
+
+function updateStats() {
+  document.getElementById('totalCount').innerText = interventi.length;
+  
+  const perYear = {};
+  const perMonth = {};
+  
+  interventi.forEach(i => {
+    const [day, month, year] = i.data.split('/');
+    perYear[year] = (perYear[year] || 0) + 1;
+    const monthKey = `${month}/${year}`;
+    perMonth[monthKey] = (perMonth[monthKey] || 0) + 1;
+  });
+  
+  document.getElementById('perYear').innerText = JSON.stringify(perYear);
+  document.getElementById('perMonth').innerText = JSON.stringify(perMonth);
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(interventi, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'interventi.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (Array.isArray(data)) {
+        interventi = interventi.concat(data);
+        saveData();
+        renderTable();
+      } else {
+        alert('Il file non è valido.');
+      }
+    } catch (err) {
+      alert('Errore nella lettura del file.');
+    }
+  };
+  reader.readAsText(file);
+}
+
+renderTable();
+
+// 🔹 Registrazione Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js')
+    .then(() => console.log('Service Worker registrato'))
+    .catch(err => console.log('Errore SW:', err));
+}
+</script>
+
+</body>
+</html>
